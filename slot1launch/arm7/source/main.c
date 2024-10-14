@@ -20,8 +20,6 @@
 #include <nds/arm7/input.h>
 #include <nds/system.h>
 
-#include "resetslot.h"
-
 void VcountHandler() {
 	inputGetAndSend();
 }

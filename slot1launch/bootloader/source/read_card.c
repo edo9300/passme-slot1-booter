@@ -25,7 +25,6 @@
 #include <string.h>
 
 #include "common/tonccpy.h"
-#include "encryption.h"
 #include "common.h"
 
 extern u32 headerData[0x1000/sizeof(u32)];
