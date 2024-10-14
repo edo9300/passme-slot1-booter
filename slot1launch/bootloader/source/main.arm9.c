@@ -51,7 +51,6 @@ bool dsiModeConfirmed = false;
 bool arm9_boostVram = false;
 bool arm9_scfgUnlock = false;
 bool arm9_extendedMemory = false;
-bool arm9_isSdk5 = false;
 
 volatile int arm9_stateFlag = ARM9_BOOT;
 volatile u32 arm9_errorCode = 0xFFFFFFFF;
@@ -300,23 +299,6 @@ void __attribute__((target("arm"))) arm9_main (void) {
 			}
 		}
 		if (arm9_stateFlag == ARM9_SETSCFG) {
-			if (dsiModeConfirmed) {
-				if (arm9_isSdk5 && ndsHeader->unitCode > 0) {
-					initMBKARM9_dsiMode();
-				}
-				REG_SCFG_EXT = 0x8307F100;
-				REG_SCFG_CLK = 0x87;
-				REG_SCFG_RST = 1;
-			} else {
-				REG_SCFG_EXT = (arm9_extendedMemory ? 0x8300C000 : 0x83000000);
-				if (arm9_boostVram) {
-					REG_SCFG_EXT |= BIT(13);	// Extended VRAM Access
-				}
-				if (!arm9_scfgUnlock) {
-					// lock SCFG
-					REG_SCFG_EXT &= ~(1UL << 31);
-				}
-			}
 			arm9_stateFlag = ARM9_READY;
 		}
 	}

@@ -39,12 +39,6 @@
 #include <nds/ipc.h>
 #include <string.h>
 
-#include "blocks_codec.h"
-
-// #include <nds/registers_alt.h>
-// #include <nds/memory.h>
-// #include <nds/card.h>
-// #include <stdio.h>
 
 #ifndef NULL
 #define NULL 0
@@ -53,7 +47,6 @@
 #define REG_GPIO_WIFI *(vu16*)0x4004C04
 
 #include "common.h"
-#include "dmaTwl.h"
 #include "common/tonccpy.h"
 #include "read_card.h"
 #include "module_params.h"
@@ -61,13 +54,6 @@
 #include "hook.h"
 #include "find.h"
 
-/*#include "gm9i/crypto.h"
-#include "gm9i/f_xy.h"
-#include "twltool/dsi.h"
-#include "u128_math.h"*/
-
-
-//extern u32 dsiMode;	// Not working?
 extern u32 language;
 extern u32 sdAccess;
 extern u32 scfgUnlock;
@@ -81,18 +67,7 @@ extern u32 runCardEngine;
 
 extern bool arm9_runCardEngine;
 
-u16 scfgRomBak = 0;
-
-bool my_isDSiMode() {
-	return ((vu8)scfgRomBak == 1);
-}
-
-bool useTwlCfg = false;
-int twlCfgLang = 0;
-
 bool gameSoftReset = false;
-
-void arm7_clearmem (void* loc, size_t len);
 
 static const u32 cheatDataEndSignature[2] = {0xCF000000, 0x00000000};
 
@@ -270,10 +245,6 @@ static void my_readUserSettings(tNDSHeader* ndsHeader) {
 
 	tonccpy(PersonalData, currentSettings, sizeof(PERSONAL_DATA));
 
-	if (useTwlCfg && (language == 0xFF || language == -1)) {
-		language = twlCfgLang;
-	}
-
 	if (language >= 0 && language <= 7) {
 		// Change language
 		personalData->language = language; //*(u8*)((u32)ndsHeader - 0x11C) = language;
@@ -309,26 +280,9 @@ void initMBK() {
 	REG_MBK8=0x07403700; // same as dsiware
 }
 
-static void initMBK_dsiMode(void) {
-	// This function has no effect with ARM7 SCFG locked
-	*(vu32*)REG_MBK1 = *(u32*)0x02FFE180;
-	*(vu32*)REG_MBK2 = *(u32*)0x02FFE184;
-	*(vu32*)REG_MBK3 = *(u32*)0x02FFE188;
-	*(vu32*)REG_MBK4 = *(u32*)0x02FFE18C;
-	*(vu32*)REG_MBK5 = *(u32*)0x02FFE190;
-	REG_MBK6 = *(u32*)0x02FFE1A0;
-	REG_MBK7 = *(u32*)0x02FFE1A4;
-	REG_MBK8 = *(u32*)0x02FFE1A8;
-	REG_MBK9 = *(u32*)0x02FFE1AC;
-}
-
 void memset_addrs_arm7(u32 start, u32 end)
 {
-	if (!my_isDSiMode()) {
-		toncset((u32*)start, 0, ((int)end - (int)start));
-		return;
-	}
-	dma_twlFill32(0, 0, (u32*)start, ((int)end - (int)start));
+	toncset((u32*)start, 0, ((int)end - (int)start));
 }
 
 /*-------------------------------------------------------------------------
@@ -340,11 +294,9 @@ Modified by Chishm:
 --------------------------------------------------------------------------*/
 void arm7_resetMemory (void)
 {
-	int i, reg;
-
 	REG_IME = 0;
 
-	for (i=0; i<16; i++) {
+	for (int i=0; i<16; i++) {
 		SCHANNEL_CR(i) = 0;
 		SCHANNEL_TIMER(i) = 0;
 		SCHANNEL_SOURCE(i) = 0;
@@ -361,15 +313,12 @@ void arm7_resetMemory (void)
 	REG_SNDCAP1LEN = 0;
 
 	// Clear out ARM7 DMA channels and timers
-	for (i=0; i<4; i++) {
+	for (int i=0; i<4; i++) {
 		DMA_CR(i) = 0;
 		DMA_SRC(i) = 0;
 		DMA_DEST(i) = 0;
 		TIMER_CR(i) = 0;
 		TIMER_DATA(i) = 0;
-		if (my_isDSiMode()) {
-			for (reg=0; reg<0x1c; reg+=4)*((u32*)(0x04004104 + ((i*0x1c)+reg))) = 0;//Reset NDMA.
-		}
 	}
 
 	REG_RCNT = 0;
@@ -379,12 +328,7 @@ void arm7_resetMemory (void)
 	REG_IPC_FIFO_CR = IPC_FIFO_ENABLE | IPC_FIFO_SEND_CLEAR;
 	REG_IPC_FIFO_CR = 0;
 
-	if (my_isDSiMode()) {
-		memset_addrs_arm7(0x03000000, 0x0380FFC0);
-		memset_addrs_arm7(0x0380FFD0, 0x03800000 + 0x10000);
-	} else {
-		memset_addrs_arm7(0x03800000 - 0x8000, 0x03800000 + 0x10000);
-	}
+	memset_addrs_arm7(0x03800000 - 0x8000, 0x03800000 + 0x10000);
 
 	// clear most of EXRAM - except before 0x023F0000, which has the cheat data
 	memset_addrs_arm7(0x02004000, 0x023DA000);
@@ -393,14 +337,9 @@ void arm7_resetMemory (void)
 	// clear more of EXRAM, skipping the cheat data section
 	toncset ((void*)0x023F8000, 0, 0x8000);
 
-	if(my_isDSiMode() || swiIsDebugger())
+	if(swiIsDebugger())
 		memset_addrs_arm7(0x02400000, 0x02800000); // Clear the rest of EXRAM
 
-	if (my_isDSiMode()) {
-		// clear last part of EXRAM
-		memset_addrs_arm7(0x02800000, 0x02FFD7BC); // Leave eMMC CID intact
-		memset_addrs_arm7(0x02FFD7CC, 0x03000000);
-	}
 
 	REG_IE = 0;
 	REG_IF = ~0;
@@ -409,9 +348,6 @@ void arm7_resetMemory (void)
 	(*(vu32*)(0x04000000-4)) = 0;  //IRQ_HANDLER ARM7 version
 	(*(vu32*)(0x04000000-8)) = ~0; //VBLANK_INTR_WAIT_FLAGS, ARM7 version
 	REG_POWERCNT = 1;  //turn off power to stuffs
-
-	useTwlCfg = (my_isDSiMode() && (*(u8*)0x02000400 & 0x0F) && (*(u8*)0x02000401 == 0) && (*(u8*)0x02000402 == 0) && (*(u8*)0x02000404 == 0));
-	twlCfgLang = *(u8*)0x02000406;
 
 	// Load FW header 
 	//readFirmware((u32)0x000000, (u8*)0x027FF830, 0x20);
@@ -478,10 +414,6 @@ static tNDSHeader* loadHeader(tDSiHeader* dsiHeaderTemp) {
 	tNDSHeader* ndsHeader = (tNDSHeader*)(isSdk5(moduleParams) ? NDS_HEADER_SDK5 : NDS_HEADER);
 
 	*ndsHeader = dsiHeaderTemp->ndshdr;
-	if (dsiModeConfirmed) {
-		tDSiHeader* dsiHeader = (tDSiHeader*)(isSdk5(moduleParams) ? DSI_HEADER_SDK5 : DSI_HEADER); // __DSiHeader
-		*dsiHeader = *dsiHeaderTemp;
-	}
 
 	return ndsHeader;
 }
@@ -580,11 +512,6 @@ static void setMemoryAddress(const tNDSHeader* ndsHeader) {
 		} else if (strncmp(getRomTid(ndsHeader)+3, "K", 1) == 0) {
 			*(u8*)(0x02FFFD70) = 5;
 		}
-
-		if (dsiModeConfirmed) {
-			i2cWriteRegister(I2C_PM, I2CREGPM_MMCPWR, 1);		// Have IRQ check for power button press
-			i2cWriteRegister(I2C_PM, I2CREGPM_RESETFLAG, 1);		// SDK 5 --> Bootflag = Warmboot/SkipHealthSafety
-		}
 	}
 
     // Set memory values expected by loaded NDS
@@ -595,7 +522,7 @@ static void setMemoryAddress(const tNDSHeader* ndsHeader) {
 	*((u16*)(isSdk5(moduleParams) ? 0x02fff80a : 0x027ff80a)) = ndsHeader->secureCRC16;	// Secure Area Checksum, CRC-16 of [ [20h]..7FFFh]
 
 	*((u16*)(isSdk5(moduleParams) ? 0x02fff850 : 0x027ff850)) = 0x5835;
-
+	
 	// Copies of above
 	*((u32*)(isSdk5(moduleParams) ? 0x02fffc00 : 0x027ffc00)) = chipID;					// CurrentCardID
 	*((u32*)(isSdk5(moduleParams) ? 0x02fffc04 : 0x027ffc04)) = chipID;					// Command10CardID
@@ -625,16 +552,10 @@ void arm7_main (void) {
 
 	//debugOutput (ERR_STS_CLR_MEM);
 
-	scfgRomBak = REG_SCFG_ROM;
-
 	// Get ARM7 to clear RAM
 	arm7_resetMemory();	
 
 	//debugOutput (ERR_STS_LOAD_BIN);
-
-	if (!twlMode) {
-		REG_SCFG_ROM = 0x703;	// Needed for Golden Sun: Dark Dawn to work
-	}
 
 	tDSiHeader* dsiHeaderTemp = (tDSiHeader*)0x02FFC000;
 
@@ -649,7 +570,7 @@ void arm7_main (void) {
 
 	bool isDSBrowser = (memcmp(ndsHeader->gameCode, "UBRP", 4) == 0);
 
-	arm9_extendedMemory = (dsiModeConfirmed || isDSBrowser);
+	arm9_extendedMemory = (isDSBrowser);
 	if (!arm9_extendedMemory) {
 		tonccpy((u32*)0x023FF000, (u32*)(isSdk5(moduleParams) ? 0x02FFF000 : 0x027FF000), 0x1000);
 	}
@@ -702,19 +623,14 @@ void arm7_main (void) {
 	// debugOutput (ERR_STS_START);
 
 	arm9_boostVram = boostVram;
-	arm9_scfgUnlock = scfgUnlock;
-	arm9_isSdk5 = isSdk5(moduleParams);
+	arm9_scfgUnlock = false;
 	arm9_runCardEngine = runCardEngine;
-
-	if (isSdk5(moduleParams) && ndsHeader->unitCode > 0 && dsiModeConfirmed) {
-		initMBK_dsiMode();
-		REG_SCFG_EXT = 0x93FFFB06;
-		REG_SCFG_CLK = 0x187;
+	
+	if(isSdk5(moduleParams)){
+		nocashMessage("is sdk5\n");
 	}
-
-	if (!scfgUnlock && !dsiModeConfirmed) {
-		// lock SCFG
-		REG_SCFG_EXT &= ~(1UL << 31);
+	else{
+		nocashMessage("isn't sdk5\n");
 	}
 
 	arm9_stateFlag = ARM9_SETSCFG;

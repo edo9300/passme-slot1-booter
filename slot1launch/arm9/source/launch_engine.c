@@ -76,6 +76,7 @@ void runLaunchEngine(void)
 	toncset32 ((u8*)LCDC_BANK_D+SOUNDFREQ_OFFSET, soundFreq, 1);
 	toncset32 ((u8*)LCDC_BANK_D+SLEEPMODE_OFFSET, sleepMode, 1);
 	toncset32 ((u8*)LCDC_BANK_D+RUNCARDENGINE_OFFSET, runCardEngine, 1);
+	toncset ((u8*)LCDC_BANK_D+DS_HEADER_OFFSET, 0, 0x1000);
 	tonccpy ((u8*)LCDC_BANK_D+DS_HEADER_OFFSET, __NDSHeader, 0x200);
 	u32 chipID = *(vu32*)(0x027FF800);
 	tonccpy ((u8*)LCDC_BANK_D+DS_HEADER_OFFSET+0x200, &chipID, 4);

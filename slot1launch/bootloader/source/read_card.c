@@ -28,12 +28,6 @@
 #include "encryption.h"
 #include "common.h"
 
-typedef union
-{
-	char title[4];
-	u32 key;
-} GameCode;
-
 extern u32 headerData[0x1000/sizeof(u32)];
 
 static u32 portFlags = 0;
@@ -50,14 +44,17 @@ int cardInit (sNDSHeaderExt* ndsHeader, u32* chipID)
 	nocashMessage("fake init card\n");
 	*chipID = headerData[0x201/4];
 	headerData[0x201/4] = 0;
-	memcpy(ndsHeader, headerData, 0x1000);
+	tonccpy(ndsHeader, headerData, 0x1000);
 	nocashMessage(ndsHeader->gameCode);
 	nocashMessage("\n");
 	vu32* firmwareSecureArea = (vu32*)0x02000000;
 	if(firmwareSecureArea[0] == 0) {
+		nocashMessage("reading secure area from second address\n");
 		firmwareSecureArea = (vu32*)0x02004000;
 	}
-	memcpy(secureArea, firmwareSecureArea, CARD_SECURE_AREA_SIZE);
+	tonccpy(secureArea, firmwareSecureArea, CARD_SECURE_AREA_SIZE);
+	// sprintf(buffer, "%p", (void*)secureArea);
+	// nocashMessage(secureArea);
 	portFlags = ndsHeader->cardControl13 & ~CARD_BLK_SIZE(7);
 	return ERR_NONE;
 }
