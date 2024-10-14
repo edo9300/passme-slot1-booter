@@ -48,13 +48,7 @@ int cardInit (sNDSHeaderExt* ndsHeader, u32* chipID)
 	nocashMessage(ndsHeader->gameCode);
 	nocashMessage("\n");
 	vu32* firmwareSecureArea = (vu32*)0x02000000;
-	if(firmwareSecureArea[0] == 0) {
-		nocashMessage("reading secure area from second address\n");
-		firmwareSecureArea = (vu32*)0x02004000;
-	}
 	tonccpy(secureArea, firmwareSecureArea, CARD_SECURE_AREA_SIZE);
-	// sprintf(buffer, "%p", (void*)secureArea);
-	// nocashMessage(secureArea);
 	portFlags = ndsHeader->cardControl13 & ~CARD_BLK_SIZE(7);
 	return ERR_NONE;
 }
