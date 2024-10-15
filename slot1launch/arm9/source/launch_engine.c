@@ -49,8 +49,18 @@ extern bool runCardEngine;
 extern bool EnableSD;
 extern int language;
 
+#define SC_MODE_RAM 0x5
+void _SC_changeMode(u8 mode) {
+	vu16 *unlockAddress = (vu16*)0x09FFFFFE;
+	*unlockAddress = 0xA55A;
+	*unlockAddress = 0xA55A;
+	*unlockAddress = mode;
+	*unlockAddress = mode;
+} 
+
 void runLaunchEngine(void)
 {
+	_SC_changeMode(SC_MODE_RAM);	// Try again with SuperCard
 	nocashMessage("runLaunchEngine\n");
 
 	irqDisable(IRQ_ALL);
@@ -75,12 +85,12 @@ void runLaunchEngine(void)
 	toncset32 ((u8*)LCDC_BANK_D+TWLTOUCH_OFFSET, TWLTOUCH, 1);
 	toncset32 ((u8*)LCDC_BANK_D+SOUNDFREQ_OFFSET, soundFreq, 1);
 	toncset32 ((u8*)LCDC_BANK_D+SLEEPMODE_OFFSET, sleepMode, 1);
-	toncset32 ((u8*)LCDC_BANK_D+RUNCARDENGINE_OFFSET, runCardEngine, 1);
+	toncset32 ((u8*)LCDC_BANK_D+RUNCARDENGINE_OFFSET, 1, 1);
 	toncset ((u8*)LCDC_BANK_D+DS_HEADER_OFFSET, 0, 0x1000);
 	tonccpy ((u8*)LCDC_BANK_D+DS_HEADER_OFFSET, __NDSHeader, 0x200);
 	u32 chipID = *(vu32*)(0x027FF800);
 	tonccpy ((u8*)LCDC_BANK_D+DS_HEADER_OFFSET+0x200, &chipID, 4);
-
+	*(u32*)(0x023F0000) = 0xCF000000;
 	nocashMessage("irqDisable(IRQ_ALL);\n");
 	irqDisable(IRQ_ALL);
 

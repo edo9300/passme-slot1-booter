@@ -16,12 +16,12 @@ export VERSION_MAJOR	:= 1
 export VERSION_MINOR	:= 99
 export VERSTRING	:=	$(VERSION_MAJOR).$(VERSION_MINOR)
 
-.PHONY: cardengine_arm7 bootloader clean arm7/$(TARGET).elf arm9/$(TARGET).elf
+.PHONY: bootloader clean arm7/$(TARGET).elf arm9/$(TARGET).elf
 
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
-all: cardengine_arm7 bootloader $(TARGET).nds
+all: bootloader $(TARGET).nds
 
 dist:	all
 	@mkdir -p ../7zfile/debug
@@ -48,8 +48,8 @@ arm9/$(TARGET).elf:
 	$(MAKE) -C arm9
 	
 #---------------------------------------------------------------------------------
-cardengine_arm7: data
-	@$(MAKE) -C cardengine_arm7
+# cardengine_arm7: data
+	# @$(MAKE) -C cardengine_arm7
 
 #---------------------------------------------------------------------------------
 clean:
@@ -63,7 +63,7 @@ clean:
 	@$(MAKE) -C bootloader clean
 	@$(MAKE) -C arm9 clean
 	@$(MAKE) -C arm7 clean
-	@$(MAKE) -C cardengine_arm7 clean
+	# @$(MAKE) -C cardengine_arm7 clean
 
 data:
 	@mkdir -p data

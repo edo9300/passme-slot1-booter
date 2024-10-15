@@ -21,7 +21,6 @@
 
 #include "hook.h"
 #include "common.h"
-#include "cardengine_arm7_bin.h"
 
 extern unsigned long language;
 extern bool gameSoftReset;
@@ -99,7 +98,9 @@ static u32* hookInterruptHandler (u32* addr, size_t size) {
 
 
 int hookNdsRetail (const tNDSHeader* ndsHeader, u32* cardEngineLocation) {
+	u32 oldReturn;
 	u32* hookLocation = hookInterruptHandler((u32*)ndsHeader->arm7destination, ndsHeader->arm7binarySize);
+	nocashMessage("hooking\n");
 
 	// SDK 5
 	if (!hookLocation && ndsHeader->unitCode != 0) {
@@ -176,18 +177,29 @@ int hookNdsRetail (const tNDSHeader* ndsHeader, u32* cardEngineLocation) {
 	}
 
 	if (!hookLocation) {
+		nocashMessage("hooking failed\n");
 		return ERR_HOOK;
 	}
 
-	u32* vblankHandler = hookLocation;
+	oldReturn = *hookLocation;
+	*(u32*)0x2000000 = (u32)cardEngineLocation;
+	*(u32*)0x2000004 = (u32)hookLocation;
+	// while(1);
+	*hookLocation = (u32)cardEngineLocation;
+	// u32* vblankHandler = hookLocation;
 
-	cardEngineLocation[1] = *vblankHandler;
-	cardEngineLocation[2] = language;
-	cardEngineLocation[3] = gameSoftReset;
+	// cardEngineLocation[1] = *vblankHandler;
+	// cardEngineLocation[2] = language;
+	// cardEngineLocation[3] = gameSoftReset;
 
-	u32* patches =  (u32*) cardEngineLocation[0];
+	// u32* patches =  (u32*) cardEngineLocation[0];
 
-	*vblankHandler = patches[0];
+	// *vblankHandler = (u32*)cardEngineLocation;
+	cardEngineLocation[intr_orig_return_offset/sizeof(u32)] = oldReturn;
+	// *(u32*)0x2000000 = (unsigned)hookLocation;
+	// *(u32*)0x2000004 = (unsigned)cardEngineLocation;
+	// nocashMessage("waiting\n");
+	// while(1);
 
 	nocashMessage("ERR_NONE\n");
 	return ERR_NONE;

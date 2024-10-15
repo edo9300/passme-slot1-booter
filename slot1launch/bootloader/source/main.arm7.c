@@ -50,10 +50,14 @@
 #include "common/tonccpy.h"
 #include "read_card.h"
 #include "module_params.h"
-#include "cardengine_arm7_bin.h"
 #include "hook.h"
 #include "find.h"
 
+
+extern unsigned long cheat_engine_size;
+extern unsigned long intr_orig_return_offset;
+
+extern const u8 cheat_engine_start[]; 
 extern u32 language;
 extern u32 sdAccess;
 extern u32 scfgUnlock;
@@ -167,7 +171,8 @@ static void patchSleepInputWrite(const tNDSHeader* ndsHeader, const module_param
 #define DSI_HEADER         0x027FE000
 #define DSI_HEADER_SDK5    0x02FFE000 // __DSiHeader
 
-#define ENGINE_LOCATION_ARM7  	0x037C0000
+#define ENGINE_LOCATION_ARM7  	0x08000000
+#define CHEAT_DATA_LOCATION  	0x09000000 //use upper 16 mb of the supercard's ram
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // Used for debugging purposes
@@ -256,30 +261,6 @@ static void my_readUserSettings(tNDSHeader* ndsHeader) {
 	}
 }
 
-void initMBK() {
-	// arm7 is master of WRAM-A, arm9 of WRAM-B & C
-	REG_MBK9=0x3000000F;
-
-	// WRAM-A fully mapped to arm7
-	*((vu32*)REG_MBK1)=0x8D898581; // same as dsiware
-
-	// WRAM-B fully mapped to arm9 // inverted order
-	*((vu32*)REG_MBK2)=0x8C888480;
-	*((vu32*)REG_MBK3)=0x9C989490;
-
-	// WRAM-C fully mapped to arm9 // inverted order
-	*((vu32*)REG_MBK4)=0x8C888480;
-	*((vu32*)REG_MBK5)=0x9C989490;
-
-	// WRAM mapped to the 0x3700000 - 0x37FFFFF area 
-	// WRAM-A mapped to the 0x3000000 - 0x303FFFF area : 256k
-	REG_MBK6=0x00403000;
-	// WRAM-B mapped to the 0x3740000 - 0x37BFFFF area : 512k // why? only 256k real memory is there
-	REG_MBK7=0x07C03740; // same as dsiware
-	// WRAM-C mapped to the 0x3700000 - 0x373FFFF area : 256k
-	REG_MBK8=0x07403700; // same as dsiware
-}
-
 void memset_addrs_arm7(u32 start, u32 end)
 {
 	toncset((u32*)start, 0, ((int)end - (int)start));
@@ -332,10 +313,10 @@ void arm7_resetMemory (void)
 
 	// clear most of EXRAM - except before 0x023F0000, which has the cheat data
 	memset_addrs_arm7(0x02004000, 0x023DA000);
-	memset_addrs_arm7(0x023DB000, 0x023F0000);
+	memset_addrs_arm7(0x023DB000, 0x02400000);
 
 	// clear more of EXRAM, skipping the cheat data section
-	toncset ((void*)0x023F8000, 0, 0x8000);
+	// toncset ((void*)0x023F8000, 0, 0x8000);
 
 	if(swiIsDebugger())
 		memset_addrs_arm7(0x02400000, 0x02800000); // Clear the rest of EXRAM
@@ -540,7 +521,7 @@ static void setMemoryAddress(const tNDSHeader* ndsHeader) {
 void arm7_main (void) {
 
 	nocashMessage("arm7_main\n");
-	initMBK();
+	// initMBK();
 
 	int errorCode;
 
@@ -596,11 +577,9 @@ void arm7_main (void) {
 	}
 
 	if (runCardEngine) {
-		// WRAM-A mapped to the 0x37C0000 - 0x37FFFFF area : 256k
-		REG_MBK6=0x080037C0;
 
-		copyLoop ((u32*)ENGINE_LOCATION_ARM7, (u32*)cardengine_arm7_bin, cardengine_arm7_bin_size);
-		errorCode = hookNdsRetail(ndsHeader, (u32*)ENGINE_LOCATION_ARM7);
+		copyLoop ((u32*)ENGINE_LOCATION_ARM7, (u32*)cheat_engine_start, cheat_engine_size);
+		errorCode = hookNdsRetail(ndsHeader, (const u32*)CHEAT_DATA_LOCATION, (u32*)ENGINE_LOCATION_ARM7);
 		if (errorCode == ERR_NONE) {
 			nocashMessage("card hook Sucessfull\n");
 		} else {
@@ -608,13 +587,16 @@ void arm7_main (void) {
 			debugOutput(errorCode);
 		}
 		if (*(u32*)(0x023F0000) != 0xCF000000) {
+			nocashMessage("cheat data found\n");
 			u32* cheatDataOffset = findOffset(
-				(u32*)ENGINE_LOCATION_ARM7, cardengine_arm7_bin_size,
+				(u32*)ENGINE_LOCATION_ARM7, cheat_engine_size,
 				cheatDataEndSignature, 2
 			);
 			if (cheatDataOffset) {
 				tonccpy (cheatDataOffset, (u32*)0x023F0000, 0x8000);	// Copy cheat data
 			}
+		} else {			
+			nocashMessage("no cheat data found\n");
 		}
 	}
 	toncset ((void*)0x023F0000, 0, 0x8000);		// Clear cheat data from main memory
